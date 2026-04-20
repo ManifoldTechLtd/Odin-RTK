@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -22,7 +22,7 @@
 namespace odin_rtk_fusion {
 
 // ============================================================================
-// OdomBuffer - 里程计数据缓存，支持时间戳查询和插值
+// OdomBuffer - Odometry data buffer with timestamp query and interpolation
 // ============================================================================
 
 class OdomBuffer {
@@ -32,12 +32,12 @@ public:
         gtsam::Pose3 pose;
     };
 
-    // 用于时间戳查询的结果，包含前后两帧信息（支持未来插值）
+    // Query result containing two surrounding frames (for future interpolation)
     struct QueryResult {
         bool found = false;
         Sample before;
         Sample after;
-        double alpha = 0.0;  // 插值系数 [0,1], t = before.t + alpha * (after.t - before.t)
+        double alpha = 0.0;  // Interpolation factor [0,1], t = before.t + alpha * (after.t - before.t)
     };
 
     // ------------------------------------------------------------------------
@@ -58,22 +58,22 @@ public:
     // Query Interface
     // ------------------------------------------------------------------------
     
-    // 查询指定时间戳的前后两帧（用于插值）
+    // Query two surrounding frames at the given timestamp (for interpolation)
     QueryResult query(double timestamp) const;
     
-    // 获取最近的一帧（当前简化逻辑）
+    // Get nearest frame (simplified logic)
     std::optional<Sample> nearest(double timestamp) const;
     
-    // 获取最近帧的时间差
+    // Get time difference to nearest frame
     double nearestTimeDiff(double timestamp) const;
     
-    // 插值获取位姿（未来扩展，目前返回最近帧）
+    // Interpolate pose (future extension, currently returns nearest frame)
     std::optional<gtsam::Pose3> interpolate(double timestamp) const;
 
-    // 获取时间范围内的所有样本 (t_start, t_end]
+    // Get all samples in time range (t_start, t_end]
     std::vector<Sample> range(double t_start, double t_end) const;
     
-    // 移除 t_end 及之前的数据
+    // Remove data up to and including t_end
     void popUntil(double t_end);
 
     // ------------------------------------------------------------------------
@@ -83,7 +83,7 @@ public:
     const Sample& back() const { return buffer_.back(); }
     const Sample& operator[](size_t idx) const { return buffer_[idx]; }
     
-    // 迭代器支持
+    // Iterator support
     auto begin() const { return buffer_.begin(); }
     auto end() const { return buffer_.end(); }
 

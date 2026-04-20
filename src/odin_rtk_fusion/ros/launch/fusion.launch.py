@@ -13,6 +13,7 @@ def generate_launch_description():
     default_rviz = os.path.join(pkg_share, 'ros', 'rviz', 'fusion_ros2.rviz')
 
     config_file = LaunchConfiguration('config_file')
+    algorithm_type = LaunchConfiguration('algorithm_type')
     output_project_topic = LaunchConfiguration('output_project_topic')
     output_project_frame_id = LaunchConfiguration('output_project_frame_id')
 
@@ -20,6 +21,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'config_file',
             default_value=default_config,
+        ),
+        DeclareLaunchArgument(
+            'algorithm_type',
+            default_value='graph',
+            description='Fusion algorithm: "graph" (ISAM2 factor graph) or "alignment" (windowed 2D Procrustes)',
         ),
         DeclareLaunchArgument(
             'output_project_topic',
@@ -36,6 +42,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'config_file': config_file,
+                'algorithm_type': algorithm_type,
                 'output_project_topic': output_project_topic,
                 'output_project_frame_id': output_project_frame_id,
             }],

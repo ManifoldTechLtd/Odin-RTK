@@ -1,35 +1,47 @@
 # Fusion Parameters
 
 # =============================================================================
-# 噪声参数 (Noise Parameters)
+# Algorithm Selection
 # =============================================================================
-odom_position_sigma: 0.005    # 里程计位置噪声标准差 (m)
-odom_rotation_sigma: 0.1    # 里程计旋转噪声标准差 (rad)
-gps_base_sigma: 5.0           # GPS基础噪声标准差 (m)，实际噪声 = gps_base_sigma * HDOP
+# algorithm_type:
+#   - "graph"     : ISAM2 factor graph fusion (GraphFusion)
+#                   Full optimization, handles odom/GPS/heading factors.
+#                   Best when odom has noise and continuous GPS correction is needed.
+#   - "alignment" : Windowed 2D Procrustes alignment (AlignmentFusion)
+#                   Closed-form least-squares estimate of wTo (yaw + xyz offset).
+#                   Best when odom is accurate (e.g. SLAM result) and GPS only calibrates wTo.
+algorithm_type: graph
 
 # =============================================================================
-# 融合参数 (Fusion Parameters)
+# Noise Parameters
 # =============================================================================
-initial_lever_arm: [-0.1, 0, 0.1]  # body系下天线位置 [x, y, z] (m)
-max_gps_match_dt: 0.5                   # GPS与odom时间戳最大差值 (s)
-max_nodes: 5000                         # 最大节点数 (边缘化阈值)
+odom_position_sigma: 0.005    # Odometry position noise std dev (m/m) - SLAM result, accurate
+odom_rotation_sigma: 0.1    # Odometry rotation noise std dev (rad)
+gps_base_sigma: 5.0           # GPS base noise std dev (m), actual noise = gps_base_sigma * HDOP
 
 # =============================================================================
-# 初始化参数 (Initialization Parameters)
+# Fusion Parameters
 # =============================================================================
-init_gps_buffer_size: 30        # 初始化GPS缓冲区大小
-init_min_gps_displacement: 1.0  # 初始化所需最小GPS位移 (m)
-init_min_odom_displacement: 1.0 # 初始化所需最小odom位移 (m)
-init_yaw_prior_sigma: 0.2       # 初始yaw先验噪声 (rad)
+initial_lever_arm: [-0.1, 0, 0.1]  # Antenna position in body frame [x, y, z] (m)
+max_gps_match_dt: 0.5                # Max GPS-odom timestamp difference (s)
+max_nodes: 5000                      # Max node count (marginalization threshold)
 
 # =============================================================================
-# CRS 参数 (Coordinate Reference System)
+# Initialization Parameters
 # =============================================================================
-# input_lla_crs: 输入经纬高坐标系 (EPSG:4326=WGS84, EPSG:4490=CGCS2000)
-# output_project_target_crs: 目标投影坐标系
-#   - EPSG:32650 = WGS84 / UTM zone 50N (东经114°~120°)
-#   - EPSG:4526 = CGCS2000 / 3-degree Gauss-Kruger zone 38 (深圳)
-#   - EPSG:4527 = CGCS2000 / 3-degree Gauss-Kruger zone 39 (北京)
+init_gps_buffer_size: 30        # Init GPS buffer size
+init_min_gps_displacement: 2.0  # Min GPS displacement for init (m)
+init_min_odom_displacement: 2.0 # Min odom displacement for init (m)
+init_yaw_prior_sigma: 0.2       # Initial yaw prior noise (rad)
+
+# =============================================================================
+# Coordinate Reference System (CRS) Parameters
+# =============================================================================
+# input_lla_crs: Input LLA coordinate system (EPSG:4326=WGS84, EPSG:4490=CGCS2000)
+# output_project_target_crs: Target projection coordinate system
+#   - EPSG:32650 = WGS84 / UTM zone 50N (E114-120)
+#   - EPSG:4526 = CGCS2000 / 3-degree Gauss-Kruger zone 38 (Shenzhen)
+#   - EPSG:4527 = CGCS2000 / 3-degree Gauss-Kruger zone 39 (Beijing)
 input_lla_crs: EPSG:4326
 output_project_enable: true
 output_project_target_crs: EPSG:32650

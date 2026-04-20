@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,9 +20,9 @@
 namespace odin_rtk_fusion {
 
 /**
- * @brief 经纬度到ENU局部坐标系的转换器
+ * @brief LLA to ENU local coordinate converter
  *
- * 第一个有效GPS点自动设为ENU原点
+ * First valid GPS point is automatically set as ENU origin
  */
 class ENUConverter {
 public:
@@ -65,10 +65,10 @@ public:
     }
 
     /**
-     * @brief 设置ENU坐标系原点
-     * @param lat 纬度（度）
-     * @param lon 经度（度）
-     * @param alt 海拔高度（米）
+     * @brief Set ENU coordinate origin
+     * @param lat Latitude (degrees)
+     * @param lon Longitude (degrees)
+     * @param alt Altitude above sea level (meters)
      */
     void setOrigin(double lat, double lon, double alt) {
         if (input_lla_crs_.empty()) {
@@ -97,16 +97,16 @@ public:
     }
 
     /**
-     * @brief 检查是否已初始化
+     * @brief Check if initialized
      */
     bool isInitialized() const { return initialized_; }
 
     /**
-     * @brief 将经纬度转换为ENU坐标
-     * @param lat 纬度（度）
-     * @param lon 经度（度）
-     * @param alt 海拔高度（米）
-     * @return ENU坐标 (East, North, Up)
+     * @brief Convert LLA to ENU coordinates
+     * @param lat Latitude (degrees)
+     * @param lon Longitude (degrees)
+     * @param alt Altitude above sea level (meters)
+     * @return ENU coordinates (East, North, Up)
      */
     Eigen::Vector3d toENU(double lat, double lon, double alt) const {
         if (!initialized_) {
@@ -138,11 +138,11 @@ public:
     }
 
     /**
-     * @brief 将ENU坐标转换回经纬度
-     * @param enu ENU坐标 (East, North, Up)
-     * @param lat 输出纬度（度）
-     * @param lon 输出经度（度）
-     * @param alt 输出海拔高度（米）
+     * @brief Convert ENU coordinates back to LLA
+     * @param enu ENU coordinates (East, North, Up)
+     * @param lat Output latitude (degrees)
+     * @param lon Output longitude (degrees)
+     * @param alt Output altitude above sea level (meters)
      */
     void toLLA(const Eigen::Vector3d& enu, double& lat, double& lon, double& alt) const {
         if (!initialized_) {
@@ -182,7 +182,7 @@ public:
     }
 
     /**
-     * @brief 获取原点的经纬度
+     * @brief Get origin LLA
      */
     void getOrigin(double& lat, double& lon, double& alt) const {
         lat = lat0_deg_;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -23,25 +23,24 @@
 
 namespace odin_rtk_fusion {
 
-struct NewFusionParams {
-    // 噪声参数
-    double odom_position_sigma = 0.01;   // 里程计位置噪声 (m)
-    double odom_rotation_sigma = 0.005;  // 里程计旋转噪声 (rad)
-    double gps_base_sigma = 1.0;         // GPS基础噪声 (m)
+struct FusionAlgorithmParams {
+    // Noise parameters
+    double odom_position_sigma = 0.05;   // Odom position noise base (m/m)
+    double odom_rotation_sigma = 0.1;    // Odom rotation noise base (rad/rad)
+    double gps_base_sigma = 0.5;         // GPS noise base (multiplied by HDOP)
 
-    double max_gps_match_dt = 0.5;       // GPS与odom时间戳最大差值 (s)
-    int max_nodes = 5000;                // 最大节点数 (边缘化阈值)
+    double max_gps_match_dt = 0.5;       // Max GPS-odom matching time diff (s)
+    int max_nodes = 100;                 // Max nodes (marginalization threshold)
 
-    // 初始化参数
+    // Initialization parameters
     int init_gps_buffer_size = 30;
-    double init_min_gps_displacement = 1.0;
+    double init_min_gps_displacement = 1.0;   // Min GPS displacement for init (m)
     double init_min_odom_displacement = 1.0;
-    double init_yaw_prior_sigma = 0.2;
-
+    double init_yaw_prior_sigma = 0.3;        // Initial yaw prior noise (rad)
     Eigen::Vector3d initial_lever_arm = Eigen::Vector3d::Zero();
 
-    static NewFusionParams LoadFromYamlFile(const std::string& yaml_file) {
-        NewFusionParams p;
+    static FusionAlgorithmParams LoadFromYamlFile(const std::string& yaml_file) {
+        FusionAlgorithmParams p;
         if (yaml_file.empty()) {
             return p;
         }
@@ -79,7 +78,10 @@ struct NewFusionParams {
 };
 
 struct FusionNodeParams {
-    NewFusionParams algorithm;
+    FusionAlgorithmParams algorithm;
+
+    // Algorithm selector: "graph" (ISAM2 factor graph) or "alignment" (windowed 2D Procrustes).
+    std::string algorithm_type = "graph";
 
     std::string input_lla_crs = "EPSG:4326";
 
@@ -88,7 +90,7 @@ struct FusionNodeParams {
 
     static FusionNodeParams LoadFromYamlFile(const std::string& yaml_file) {
         FusionNodeParams p;
-        p.algorithm = NewFusionParams::LoadFromYamlFile(yaml_file);
+        p.algorithm = FusionAlgorithmParams::LoadFromYamlFile(yaml_file);
 
         if (yaml_file.empty()) {
             return p;
@@ -103,6 +105,7 @@ struct FusionNodeParams {
             }
         };
 
+        readScalar("algorithm_type", p.algorithm_type);
         readScalar("input_lla_crs", p.input_lla_crs);
         readScalar("output_project_enable", p.output_project_enable);
         readScalar("output_project_target_crs", p.output_project_target_crs);

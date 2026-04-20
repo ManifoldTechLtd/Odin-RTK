@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="config_file" default="$(find odin_rtk_fusion)/config/fusion_params.yaml"/>
+    <arg name="algorithm_type" default="graph"/> <!-- "graph", "alignment", or "" to use YAML default -->
     <arg name="output_project_topic" default="/world/odom_projected"/>
     <arg name="output_project_frame_id" default="world_proj"/>
 
     <arg name="play_bag" default="false"/>
-    <arg name="bag_path" default="~/DEMO/odin_gnss.bag"/>
+    <arg name="bag_path" default="$(env HOME)/odin_gnss_demo.bag"/>
     <arg name="bag_rate" default="3.0"/>
     <arg name="bag_loop" default="false"/>
     <arg name="bag_start" default="5.0"/>
@@ -14,6 +15,7 @@
     <!-- ========== Fusion Node ========== -->
     <node pkg="odin_rtk_fusion" type="fusion_node" name="fusion_node" output="screen">
         <param name="config_file" value="$(arg config_file)"/>
+        <param name="algorithm_type" value="$(arg algorithm_type)"/>
 
         <param name="output_project_topic" value="$(arg output_project_topic)"/>
         <param name="output_project_frame_id" value="$(arg output_project_frame_id)"/>

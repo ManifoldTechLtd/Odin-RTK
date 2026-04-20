@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,13 +18,13 @@
 
 #include "common/build_config.h"
 #include "common/data_types.hpp"
-#include "common/parameter.h"
+#include "common/parameter.hpp"
 #include "common/enu_converter.hpp"
 #include "common/gga_parser.hpp"
 #include "common/logger.hpp"
 #include "common/proj_converter.hpp"
-#include "gtsam/fusion_base.hpp"
-#include "gtsam/new_fusion.hpp"
+#include "fusion/fusion_base.hpp"
+#include "fusion/fusion_factory.hpp"
 
 // ROS-specific includes
 #if defined(ODIN_ROS2)
@@ -77,8 +77,8 @@ using SubscriptionType = ros::Subscriber;
 #endif
 
 /**
- * @brief 融合ROS节点
- * 支持ROS1和ROS2，通过条件编译切换
+ * @brief Fusion ROS node
+ * Supports ROS1 and ROS2, switched via conditional compilation
  */
 class FusionNode {
 public:
@@ -88,16 +88,16 @@ public:
         advertiseTopics();
         subscribeTopics();
         tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*node_);
-        fusion_ = std::make_unique<NewFusion>(new_config_);
-        logInfo("FusionNode initialized");
+        fusion_ = createFusion(algorithm_type_, new_config_);
+        logInfo("FusionNode initialized (algorithm=%s)", algorithm_type_.c_str());
     }
 #else
     FusionNode(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         loadParameters();
         advertiseTopics();
         subscribeTopics();
-        fusion_ = std::make_unique<NewFusion>(new_config_);
-        logInfo("FusionNode initialized");
+        fusion_ = createFusion(algorithm_type_, new_config_);
+        logInfo("FusionNode initialized (algorithm=%s)", algorithm_type_.c_str());
     }
 #endif
 
@@ -124,12 +124,20 @@ private:
         try {
             const FusionNodeParams params = FusionNodeParams::LoadFromYamlFile(config_file_);
             new_config_ = params.algorithm;
+            algorithm_type_ = params.algorithm_type;
             input_lla_crs_ = params.input_lla_crs;
             output_project_enable_ = params.output_project_enable;
             output_project_target_crs_ = params.output_project_target_crs;
         } catch (const std::exception& e) {
             logError("Failed to load config_file '%s': %s", config_file_.c_str(), e.what());
-            new_config_ = NewFusion::Config();
+            new_config_ = FusionAlgorithmParams();
+        }
+
+        // Allow ROS parameter override (takes precedence over YAML).
+        // Empty string means "keep the YAML value".
+        const std::string algo_override = getParam<std::string>("algorithm_type", std::string(""));
+        if (!algo_override.empty()) {
+            algorithm_type_ = algo_override;
         }
 
         projected_odom_topic_ = getParam<std::string>("output_project_topic", std::string("/world/odom_projected"));
@@ -269,6 +277,24 @@ private:
         const Eigen::Matrix4d& odom_T_body = odom.pose;
         const Eigen::Matrix4d world_T_body = world_T_odom * odom_T_body;
 
+        // Jitter detection: log when output position jumps > 3cm
+        {
+            static Eigen::Vector3d last_pos(0, 0, 0);
+            static bool has_last = false;
+            const Eigen::Vector3d cur_pos = world_T_body.block<3,1>(0,3);
+            if (has_last) {
+                const Eigen::Vector3d diff = cur_pos - last_pos;
+                const double jump = diff.head<2>().norm();
+                if (jump > 0.03) {
+                    LOG_WARN("[OUTPUT_JITTER] jump={:.4f}m pos=[{:.3f} {:.3f} {:.3f}] delta=[{:.4f} {:.4f} {:.4f}]",
+                             jump, cur_pos.x(), cur_pos.y(), cur_pos.z(),
+                             diff.x(), diff.y(), diff.z());
+                }
+            }
+            last_pos = cur_pos;
+            has_last = true;
+        }
+
         OdometryMsg fused_odom_msg;
         fused_odom_msg.header.stamp = stamp;
         fused_odom_msg.header.frame_id = "world";
@@ -348,9 +374,9 @@ private:
 
         OdometryMsg projected = enu_odom_msg;
         projected.header.frame_id = projected_frame_id_;
-        projected.pose.pose.position.x = out_x;
-        projected.pose.pose.position.y = out_y;
-        projected.pose.pose.position.z = out_z;
+        projected.pose.pose.position.x = enu_odom_msg.pose.pose.position.x;
+        projected.pose.pose.position.y = enu_odom_msg.pose.pose.position.y;
+        projected.pose.pose.position.z = enu_odom_msg.pose.pose.position.z;
         publish(fused_odom_projected_pub_, projected);
     }
 
@@ -445,7 +471,8 @@ private:
 #endif
 
     std::unique_ptr<FusionBase> fusion_;
-    NewFusion::Config new_config_;
+    FusionAlgorithmParams new_config_;
+    std::string algorithm_type_ = "graph";
     ENUConverter enu_converter_;
     ProjConverter proj_converter_;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -10,9 +10,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "new_fusion.hpp"
+#include "fusion/gtsam/graph_fusion.hpp"
 
-#include <iostream>
 #include <cmath>
 
 namespace odin_rtk_fusion {
@@ -22,10 +21,10 @@ namespace odin_rtk_fusion {
 // ============================================================================
 namespace {
 
-// 将天线 ENU 坐标转换为 body 原点 ENU 坐标
-// antenna_enu: 天线在 world 坐标系下的 ENU 位置
-// world_R_body: body 在 world 坐标系下的旋转
-// lever_arm: body 坐标系下天线相对于 body 原点的偏移
+// Convert antenna ENU coordinates to body origin ENU coordinates
+// antenna_enu: antenna position in world ENU frame
+// world_R_body: body rotation in world frame
+// lever_arm: antenna offset from body origin in body frame
 gtsam::Point3 antennaEnuToBodyEnu(const Eigen::Vector3d& antenna_enu,
                                    const gtsam::Rot3& world_R_body,
                                    const Eigen::Vector3d& lever_arm) {
@@ -42,7 +41,7 @@ gtsam::Point3 antennaEnuToBodyEnu(const Eigen::Vector3d& antenna_enu,
 // Construction
 // ============================================================================
 
-NewFusion::NewFusion(const Config& config)
+GraphFusion::GraphFusion(const Config& config)
     : config_(config),
       gps_buffer_(static_cast<size_t>(config.init_gps_buffer_size)) {
     gtsam::ISAM2Params isam_params;
@@ -55,21 +54,21 @@ NewFusion::NewFusion(const Config& config)
 // Public Interface
 // ============================================================================
 
-void NewFusion::addOdom(const OdomData& odom, bool is_high_freq) {
+void GraphFusion::addOdom(const OdomData& odom, bool is_high_freq) {
     (void)is_high_freq;
     std::lock_guard<std::mutex> lock(mutex_);
 
     const gtsam::Pose3 cur_odom_pose(gtsam::Pose3(odom.pose));
     have_odom_ = true;
 
-    // 缓存 odom 数据（初始化和运行时共用同一个 buffer）
+    // Buffer odom data (shared buffer for init and runtime)
     odom_buffer_.push(odom.timestamp, cur_odom_pose);
 }
 
-void NewFusion::addGPS(const GPSData& gps) {
+void GraphFusion::addGPS(const GPSData& gps) {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // 应用时间偏移补偿（初始化前 gps_time_offset_ 为 0）
+    // Apply time offset compensation (gps_time_offset_ is 0 before init)
     const double timestamp = gps.timestamp + gps_time_offset_;
     const Eigen::Vector3d& enu = gps.enu;
     const int quality = gps.quality;
@@ -79,16 +78,16 @@ void NewFusion::addGPS(const GPSData& gps) {
         return;
     }
 
-    // quality 0 无效数据直接丢弃
+    // Discard invalid data with quality 0
     if (quality == 0) {
         return;
     }
 
-    // ========== 初始化阶段 ==========
+    // ========== Initialization phase ==========
     if (state_ != State::kRunning) {
         gps_buffer_.push(timestamp, enu, quality, hdop);
 
-        // 尝试计算初始 yaw 偏移
+        // Try to compute initial yaw offset
         YawInitConfig yaw_config;
         yaw_config.min_gps_displacement = config_.init_min_gps_displacement;
         yaw_config.min_odom_displacement = config_.init_min_odom_displacement;
@@ -107,12 +106,12 @@ void NewFusion::addGPS(const GPSData& gps) {
         return;
     }
 
-    // ========== 运行阶段 ==========
+    // ========== Running phase ==========
     
-    // 获取自上次节点以来的所有 odom 数据
+    // Get all odom data since last node
     auto odom_samples = odom_buffer_.range(last_node_timestamp_, timestamp);
     if (odom_samples.empty()) {
-        // 没有新的 odom 数据，尝试用最近的
+        // No new odom data, try using the nearest
         auto odom_opt = odom_buffer_.nearest(timestamp);
         if (!odom_opt) {
             return;
@@ -126,52 +125,65 @@ void NewFusion::addGPS(const GPSData& gps) {
 
     const gtsam::Pose3 world_T_odom(world_T_odom_);
 
-    // 为每个 odom 创建节点和因子
+    // Create nodes and factors for each odom sample
     for (size_t i = 0; i < odom_samples.size(); ++i) {
         const auto& sample = odom_samples[i];
         const gtsam::Pose3& cur_odom_pose = sample.pose;
 
-        // 添加 odom 因子 (连接到上一个节点)
+        // Add odom factor (connect to previous node)
         if (node_count_ > 0) {
             addOdomFactor(node_count_ - 1, node_count_, last_node_odom_pose_, cur_odom_pose);
         }
 
-        // 添加节点初值
+        // Add initial node value
         const gtsam::Pose3 predicted = world_T_odom * cur_odom_pose;
         if (!initial_.exists(X(node_count_))) {
             initial_.insert(X(node_count_), predicted);
         }
 
-        // 记录节点状态
+        // Record node state
         last_node_odom_pose_ = cur_odom_pose;
         last_node_timestamp_ = sample.timestamp;
 
-        // 在最后一个节点上添加 GPS 因子
+        // Add GPS factor on the last node
         if (i == odom_samples.size() - 1) {
+            // Log raw inputs BEFORE optimization
+            const gtsam::Point3 odom_t = cur_odom_pose.translation();
+            const gtsam::Point3 pred_t = (world_T_odom * cur_odom_pose).translation();
+            LOG_INFO("[INPUT] node x{}: odom=[{:.3f} {:.3f} {:.3f}] gps_enu=[{:.3f} {:.3f} {:.3f}] predicted=[{:.3f} {:.3f} {:.3f}]",
+                     node_count_,
+                     odom_t.x(), odom_t.y(), odom_t.z(),
+                     enu.x(), enu.y(), enu.z(),
+                     pred_t.x(), pred_t.y(), pred_t.z());
             addGpsFactor(node_count_, cur_odom_pose, enu, quality, hdop);
-
-            const auto& odom_world = predicted.translation();
-            // LOG_INFO("[POS_LOG] t={:.6f} GPS {:.4f} {:.4f} {:.4f} ODOM {:.4f} {:.4f} {:.4f}",
-            //          timestamp, enu.x(), enu.y(), enu.z(),
-            //          odom_world.x(), odom_world.y(), odom_world.z());
         }
 
         node_count_++;
     }
 
-    // 清理已处理的 odom 数据
+    // Clean up processed odom data
     odom_buffer_.popUntil(last_node_timestamp_);
 
     optimize();
+
+    // Log optimized result AFTER optimization
+    if (node_count_ > 0) {
+        const gtsam::Point3 opt_t = last_key_world_pose_.translation();
+        const gtsam::Rot3 opt_r = last_key_world_pose_.rotation();
+        LOG_INFO("[OUTPUT] node x{}: optimized=[{:.3f} {:.3f} {:.3f}] yaw={:.2f}deg",
+                 node_count_ - 1,
+                 opt_t.x(), opt_t.y(), opt_t.z(),
+                 opt_r.yaw() * 180.0 / M_PI);
+    }
     marginalize();
 }
 
-bool NewFusion::isInitialized() const {
+bool GraphFusion::isInitialized() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return state_ == State::kRunning;
 }
 
-Eigen::Matrix4d NewFusion::getWorldToOdom() const {
+Eigen::Matrix4d GraphFusion::getWorldToOdom() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return world_T_odom_;
 }
@@ -180,7 +192,7 @@ Eigen::Matrix4d NewFusion::getWorldToOdom() const {
 // Factor Graph Operations
 // ============================================================================
 
-void NewFusion::addOdomFactor(int from_id, int to_id, const gtsam::Pose3& from_pose, const gtsam::Pose3& to_pose) {
+void GraphFusion::addOdomFactor(int from_id, int to_id, const gtsam::Pose3& from_pose, const gtsam::Pose3& to_pose) {
     const gtsam::Pose3 delta_odom = from_pose.inverse() * to_pose;
 
     const gtsam::Point3 dp = delta_odom.translation();
@@ -195,38 +207,118 @@ void NewFusion::addOdomFactor(int from_id, int to_id, const gtsam::Pose3& from_p
     graph_.add(gtsam::BetweenFactor<gtsam::Pose3>(X(from_id), X(to_id), delta_odom, odom_noise));
 }
 
-void NewFusion::addGpsFactor(int node_id, const gtsam::Pose3& odom_pose, const Eigen::Vector3d& enu, int quality, double hdop) {
-    // 考虑 lever arm 将天线位置转换到 body 原点
+void GraphFusion::addGpsFactor(int node_id, const gtsam::Pose3& odom_pose, const Eigen::Vector3d& enu, int quality, double hdop) {
+    // Apply lever arm to convert antenna position to body origin
     const gtsam::Pose3 world_T_odom(world_T_odom_);
     const gtsam::Rot3 world_R_body = (world_T_odom * odom_pose).rotation();
     gtsam::Point3 body_enu = antennaEnuToBodyEnu(enu, world_R_body, config_.initial_lever_arm);
 
-    // 噪声：根据GPS质量调整
+    // Noise: adjust based on GPS quality
     const double gps_sigma = config_.gps_base_sigma * hdop;
+    std::cout << "gps_sigma: " << gps_sigma << " hdop: " << hdop << "   "<< std::endl;
     gtsam::Vector sigma3(3);
     if (quality == 4) {
-        // RTK Fix
-        sigma3 << gps_sigma, gps_sigma, gps_sigma;
+        // RTK Fix — z uses configurable sigma
+        sigma3 << gps_sigma, gps_sigma, gps_sigma * 2;
     } else if (quality == 5) {
-        // RTK Float
+        // RTK Float — weak z
         sigma3 << gps_sigma * 2, gps_sigma * 2, 1e2;
         body_enu = gtsam::Point3(body_enu.x(), body_enu.y(), 0.0);
     } else {
-        // GPS/DGPS
+        // GPS/DGPS — weak z
         sigma3 << gps_sigma * 10, gps_sigma * 10, 1e2;
         body_enu = gtsam::Point3(body_enu.x(), body_enu.y(), 0.0);
     }
 
     auto gps_noise = gtsam::noiseModel::Diagonal::Sigmas(sigma3);
     graph_.add(gtsam::GPSFactor(X(node_id), body_enu, gps_noise));
+    return;
+    // Store GPS body z for wTo z anchoring
+    last_gps_body_z_ = body_enu.z();
+
+    // Diagnostic: GPS residual (predicted - measurement)
+    const gtsam::Point3 predicted_pos = (world_T_odom * odom_pose).translation();
+    LOG_INFO("[DIAG] GPS residual: pred=[{:.3f} {:.3f} {:.3f}] meas=[{:.3f} {:.3f} {:.3f}] err=[{:.4f} {:.4f} {:.4f}]",
+             predicted_pos.x(), predicted_pos.y(), predicted_pos.z(),
+             body_enu.x(), body_enu.y(), body_enu.z(),
+             predicted_pos.x()-body_enu.x(), predicted_pos.y()-body_enu.y(), predicted_pos.z()-body_enu.z());
+
+    // GPS heading factor: provides absolute yaw constraint
+    // Only update anchor when displacement >= 0.5m (works at any GPS rate)
+    if (have_last_gps_ && quality == 4) {
+        const double dx = enu.x() - last_gps_enu_.x();
+        const double dy = enu.y() - last_gps_enu_.y();
+        const double dist = std::sqrt(dx * dx + dy * dy);
+
+        // Use odom's roll/pitch for heading pose
+        const gtsam::Rot3 odom_rot = (world_T_odom * odom_pose).rotation();
+
+        if (dist > 0.5) {
+            const double gps_heading = std::atan2(dy, dx);
+            const gtsam::Rot3 heading_rot = gtsam::Rot3::Ypr(gps_heading,
+                                                               odom_rot.pitch(),
+                                                               odom_rot.roll());
+            const gtsam::Pose3 heading_pose(heading_rot, body_enu);
+
+            // Heading sigma: tighter when baseline longer (more reliable direction)
+            const double heading_sigma = std::max(0.05, 0.3 / dist);
+            auto heading_noise = gtsam::noiseModel::Diagonal::Sigmas(
+                (gtsam::Vector(6) << 10.0, 10.0, heading_sigma, 1e3, 1e3, 1e3).finished());
+            graph_.add(gtsam::PriorFactor<gtsam::Pose3>(X(node_id), heading_pose, heading_noise));
+
+            LOG_INFO("[DIAG] GPS heading: {:.2f}deg dist={:.3f}m sigma={:.3f}rad",
+                     gps_heading * 180.0 / M_PI, dist, heading_sigma);
+
+            // Store last good heading
+            last_gps_heading_ = gps_heading;
+            last_odom_yaw_at_gps_ = odom_pose.rotation().yaw();
+            have_gps_heading_ = true;
+
+            // Update anchor only after successful heading computation
+            last_gps_enu_ = enu;
+        } else if (have_gps_heading_) {
+            // GPS quasi-stationary: anchor yaw to odom-predicted heading
+            // expected_yaw = last_gps_heading + odom rotation since then
+            const double odom_yaw_now = odom_pose.rotation().yaw();
+            double odom_dyaw = odom_yaw_now - last_odom_yaw_at_gps_;
+            if (odom_dyaw > M_PI) odom_dyaw -= 2*M_PI;
+            if (odom_dyaw < -M_PI) odom_dyaw += 2*M_PI;
+            const double expected_yaw = last_gps_heading_ + odom_dyaw;
+
+            const gtsam::Rot3 hold_rot = gtsam::Rot3::Ypr(expected_yaw,
+                                                            odom_rot.pitch(),
+                                                            odom_rot.roll());
+            const gtsam::Pose3 hold_pose(hold_rot, body_enu);
+            auto hold_noise = gtsam::noiseModel::Diagonal::Sigmas(
+                (gtsam::Vector(6) << 10.0, 10.0, 0.1, 1e3, 1e3, 1e3).finished());
+            graph_.add(gtsam::PriorFactor<gtsam::Pose3>(X(node_id), hold_pose, hold_noise));
+            LOG_INFO("[DIAG] GPS heading HOLD: expected={:.2f}deg (gps_h={:.2f} + odom_d={:.2f})",
+                     expected_yaw * 180.0 / M_PI, last_gps_heading_ * 180.0 / M_PI, odom_dyaw * 180.0 / M_PI);
+        }
+    } else if (quality == 4) {
+        // First RTK Fix GPS: set anchor
+        last_gps_enu_ = enu;
+        have_last_gps_ = true;
+    }
 }
 
-void NewFusion::optimize() {
+void GraphFusion::optimize() {
     if (graph_.empty() && initial_.empty()) {
         return;
     }
 
     try {
+        // Diagnostic: capture old node position BEFORE update
+        const int stable_id = std::max(0, node_count_ - 10);
+        gtsam::Point3 old_stable_pos(0,0,0);
+        bool has_stable = false;
+        if (node_count_ > 10) {
+            try {
+                old_stable_pos = isam_->calculateEstimate<gtsam::Pose3>(X(stable_id)).translation();
+                has_stable = true;
+            } catch (...) {}
+        }
+
         isam_->update(graph_, initial_);
         graph_.resize(0);
         initial_.clear();
@@ -234,17 +326,44 @@ void NewFusion::optimize() {
         gtsam::Values result = isam_->calculateEstimate();
         if (node_count_ > 0 && result.exists(X(node_count_ - 1))) {
             last_key_world_pose_ = result.at<gtsam::Pose3>(X(node_count_ - 1));
-            // 更新 world_T_odom
-            world_T_odom_ = (last_key_world_pose_ * last_node_odom_pose_.inverse()).matrix();
+
+            // Update world_T_odom: yaw-only (no pitch/roll)
+            const Eigen::Matrix4d raw_wTo = (last_key_world_pose_ * last_node_odom_pose_.inverse()).matrix();
+            const double wTo_yaw = std::atan2(raw_wTo(1,0), raw_wTo(0,0));
+            const double cy = std::cos(wTo_yaw), sy = std::sin(wTo_yaw);
+            const gtsam::Point3 world_t = last_key_world_pose_.translation();
+            const gtsam::Point3 odom_t = last_node_odom_pose_.translation();
+            world_T_odom_ = Eigen::Matrix4d::Identity();
+            world_T_odom_(0,0) =  cy; world_T_odom_(0,1) = -sy;
+            world_T_odom_(1,0) =  sy; world_T_odom_(1,1) =  cy;
+            world_T_odom_(0,3) = world_t.x() - (cy * odom_t.x() - sy * odom_t.y());
+            world_T_odom_(1,3) = world_t.y() - (sy * odom_t.x() + cy * odom_t.y());
+            world_T_odom_(2,3) = world_t.z() - odom_t.z();
         }
     } catch (const std::exception& e) {
-        std::cerr << "[NewFusion] Optimization failed: " << e.what() << std::endl;
+        LOG_ERROR("[GraphFusion] Optimization failed: {}, rebuilding ISAM2...", e.what());
+        // graph_.resize(0);
+        // initial_.clear();
+
+        // // Rebuild ISAM2 from last good state
+        // gtsam::ISAM2Params isam_params;
+        // isam_params.relinearizeThreshold = 0.1;
+        // isam_params.relinearizeSkip = 1;
+        // isam_ = std::make_unique<gtsam::ISAM2>(isam_params);
+
+        // // Re-anchor with a prior on current best estimate
+        // const double recover_sigma = std::max(1.0, config_.gps_base_sigma);
+        // auto prior_noise = gtsam::noiseModel::Diagonal::Sigmas(
+        //     (gtsam::Vector(6) << 0.1, 0.1, 0.1, recover_sigma, recover_sigma, recover_sigma).finished());
+        // graph_.add(gtsam::PriorFactor<gtsam::Pose3>(X(node_count_ - 1), last_key_world_pose_, prior_noise));
+        // initial_.insert(X(node_count_ - 1), last_key_world_pose_);
+        // isam_->update(graph_, initial_);
         graph_.resize(0);
         initial_.clear();
     }
 }
 
-void NewFusion::marginalize() {
+void GraphFusion::marginalize() {
     const int keep_last_n = config_.max_nodes;
     if (node_count_ <= keep_last_n) {
         return;
@@ -268,11 +387,11 @@ void NewFusion::marginalize() {
         isam_->marginalizeLeaves(to_marginalize);
         last_marginalized_id_ = oldest_to_keep - 1;
     } catch (const std::exception& e) {
-        std::cerr << "[NewFusion] Marginalization failed: " << e.what() << std::endl;
+        LOG_ERROR("[GraphFusion] Marginalization failed: {}", e.what());
     }
 }
 
-void NewFusion::initializeWithFirstGps(const YawInitResult& init_result) {
+void GraphFusion::initializeWithFirstGps(const YawInitResult& init_result) {
     gtsam::ISAM2Params isam_params;
     isam_params.relinearizeThreshold = 0.1;
     isam_params.relinearizeSkip = 1;
@@ -287,11 +406,11 @@ void NewFusion::initializeWithFirstGps(const YawInitResult& init_result) {
     const gtsam::Rot3 world_R_odom = gtsam::Rot3::Rz(init_yaw_offset_);
     const gtsam::Point3 odom_t_body = odom_ref.translation();
 
-    // 天线 ENU → body ENU
+    // Antenna ENU -> body ENU
     const gtsam::Rot3 world_R_body = world_R_odom * odom_ref.rotation();
     const gtsam::Point3 world_t_body = antennaEnuToBodyEnu(antenna_enu, world_R_body, config_.initial_lever_arm);
 
-    // 计算 world_T_odom
+    // Compute world_T_odom
     const gtsam::Point3 world_t_odom_adjusted = world_t_body - world_R_odom.rotate(odom_t_body);
     const gtsam::Pose3 world_T_odom(world_R_odom, world_t_odom_adjusted);
     const gtsam::Pose3 x0 = world_T_odom * odom_ref;
@@ -301,7 +420,7 @@ void NewFusion::initializeWithFirstGps(const YawInitResult& init_result) {
         (gtsam::Vector(6) << 1, 1, config_.init_yaw_prior_sigma, 1e3, 1e3, 1e3).finished());
     graph_.add(gtsam::PriorFactor<gtsam::Pose3>(X(0), gtsam::Pose3(world_R_odom, gtsam::Point3()), gauge_noise));
 
-    // 同时加一个 GPSFactor 锚定位置
+    // Also add a GPSFactor to anchor position
     const double gps_sigma = std::max(0.5, config_.gps_base_sigma);
     gtsam::Vector sigma3(3);
     sigma3 << gps_sigma, gps_sigma, gps_sigma;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -35,7 +35,7 @@ OdomBuffer::QueryResult OdomBuffer::query(double timestamp) const {
         return result;
     }
     
-    // 边界情况：时间戳在范围外
+    // Edge case: timestamp out of range
     if (timestamp <= buffer_.front().timestamp) {
         result.found = true;
         result.before = buffer_.front();
@@ -52,7 +52,7 @@ OdomBuffer::QueryResult OdomBuffer::query(double timestamp) const {
         return result;
     }
     
-    // 二分查找第一个 timestamp >= 目标的元素
+    // Binary search for first element with timestamp >= target
     auto it = std::lower_bound(
         buffer_.begin(), buffer_.end(), timestamp,
         [](const Sample& s, double t) { return s.timestamp < t; }
@@ -119,8 +119,8 @@ double OdomBuffer::nearestTimeDiff(double timestamp) const {
 }
 
 std::optional<gtsam::Pose3> OdomBuffer::interpolate(double timestamp) const {
-    // 目前简化实现：返回最近帧
-    // TODO: 实现真正的位姿插值 (translation 线性插值 + rotation SLERP)
+    // Simplified implementation: return nearest frame
+    // TODO: Implement proper pose interpolation (linear for translation + SLERP for rotation)
     auto sample = nearest(timestamp);
     if (sample) {
         return sample->pose;

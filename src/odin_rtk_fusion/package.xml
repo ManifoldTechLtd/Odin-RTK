@@ -6,7 +6,7 @@
     SLAM Odometry and GGA (GPS) data fusion using GTSAM factor graph optimization.
   </description>
 
-  <maintainer email="yuzhitao@manifold.cn">Zhitao Yu</maintainer>
+  <maintainer email="dev@manifoldtech.cn">Manifold Dev Team</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend condition="$ROS_VERSION == 1">catkin</buildtool_depend>
@@ -23,8 +23,8 @@
   <build_depend>visualization_msgs</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>pcl_conversions</build_depend>
-  <build_depend>message_filters</build_depend>
-  <build_depend>eigen</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>spdlog</build_depend>
 
   <!-- Exec Dependencies -->
   <exec_depend condition="$ROS_VERSION == 1">roscpp</exec_depend>
@@ -37,7 +37,7 @@
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>pcl_ros</exec_depend>
   <exec_depend>pcl_conversions</exec_depend>
-  <exec_depend>message_filters</exec_depend>
+  <exec_depend>spdlog</exec_depend>
 
   <!-- External Dependencies -->
   <depend>libgtsam-dev</depend>

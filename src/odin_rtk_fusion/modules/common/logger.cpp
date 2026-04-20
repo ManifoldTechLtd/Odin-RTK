@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -15,6 +15,8 @@
 #include <filesystem>
 
 
+namespace odin_rtk_fusion {
+
 SpdlogManager& SpdlogManager::getInstance() {
   static SpdlogManager instance;
   return instance;
@@ -26,7 +28,7 @@ void SpdlogManager::initialize(const std::string& log_file, bool clear_old_logs)
   }
 
   try {
-    // 如果需要清除旧日志，删除所有相关的日志文件
+    // If clearing old logs, delete all related log files
     if (clear_old_logs) {
       clearOldLogFiles(log_file);
     }
@@ -35,21 +37,21 @@ void SpdlogManager::initialize(const std::string& log_file, bool clear_old_logs)
     console_sink->set_level(spdlog::level::debug);
     console_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%t] %v");
 
-    // 创建文件输出sink（轮转文件）
+    // Create file output sink (rotating file)
     auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_file, 1024 * 1024 * 100 , 5);  // 100MB per file, 5 files max
     file_sink->set_level(spdlog::level::trace);
     file_sink->set_pattern("[%L] [%T] %v");
 
-    // 创建默认日志器
+    // Create default logger
     default_logger_ = std::make_shared<spdlog::logger>("default", spdlog::sinks_init_list{file_sink});
 
-    // 设置默认日志器
+    // Set default logger
     spdlog::set_default_logger(default_logger_);
 
-    // 设置全局日志级别
+    // Set global log level
     spdlog::set_level(spdlog::level::trace);
 
-    // 设置刷新策略
+    // Set flush policy
     spdlog::flush_on(spdlog::level::info);
 
     initialized_ = true;
@@ -99,20 +101,20 @@ void SpdlogManager::clearOldLogFiles(const std::string& log_file) {
     std::string log_name = log_path.stem().string();
     std::string log_ext = log_path.extension().string();
     
-    // 如果目录不存在，创建它
+    // Create directory if it doesn't exist
     if (!log_dir.empty() && !std::filesystem::exists(log_dir)) {
       std::filesystem::create_directories(log_dir);
     }
     
-    // 删除主日志文件
+    // Delete main log file
     if (std::filesystem::exists(log_file)) {
       std::filesystem::remove(log_file);
       std::cout << "Deleted old log file: " << log_file << std::endl;
     }
     
-    // 删除所有轮转的日志文件 (spdlog rotating file sink 的命名规则)
-    // 轮转文件命名格式: xxx.1.log, xxx.2.log, ...
-    for (int i = 1; i <= 10; ++i) {  // 检查最多10个轮转文件
+    // Delete all rotated log files (spdlog rotating file sink naming convention)
+    // Rotated file format: xxx.1.log, xxx.2.log, ...
+    for (int i = 1; i <= 10; ++i) {  // Check up to 10 rotated files
       std::string rotated_file = log_name + "." + std::to_string(i) + log_ext;
       if (std::filesystem::exists(rotated_file)) {
         std::filesystem::remove(rotated_file);
@@ -124,3 +126,5 @@ void SpdlogManager::clearOldLogFiles(const std::string& log_file) {
     std::cerr << "Error clearing old log files: " << ex.what() << std::endl;
   }
 }
+
+}  // namespace odin_rtk_fusion

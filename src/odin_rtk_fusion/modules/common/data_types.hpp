@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -18,41 +18,41 @@
 namespace odin_rtk_fusion {
 
 /**
- * @brief 里程计数据
+ * @brief Odometry data
  */
 struct OdomData {
     double timestamp = 0;
     Eigen::Matrix4d pose = Eigen::Matrix4d::Identity();
 
-    // 提取平移
+    // Extract translation
     Eigen::Vector3d translation() const {
         return pose.block<3, 1>(0, 3);
     }
 
-    // 提取旋转矩阵
+    // Extract rotation matrix
     Eigen::Matrix3d rotation() const {
         return pose.block<3, 3>(0, 0);
     }
 };
 
 /**
- * @brief GPS/GGA数据
+ * @brief GPS/GGA data
  */
 struct GPSData {
     double timestamp = 0;
-    double lat = 0;          // 纬度 (度)
-    double lon = 0;          // 经度 (度)
-    double alt = 0;          // 高度 (米)
-    int quality = 0;         // 定位质量: 0=无效, 1=GPS, 2=DGPS, 4=RTK Fix, 5=RTK Float
-    double hdop = 99.0;      // 水平精度因子
-    int num_satellites = 0;  // 卫星数量
+    double lat = 0;          // Latitude (degrees)
+    double lon = 0;          // Longitude (degrees)
+    double alt = 0;          // Altitude (meters)
+    int quality = 0;         // Fix quality: 0=Invalid, 1=GPS, 2=DGPS, 4=RTK Fix, 5=RTK Float
+    double hdop = 99.0;      // Horizontal dilution of precision
+    int num_satellites = 0;  // Number of satellites
     bool valid = false;
 
-    Eigen::Vector3d enu = Eigen::Vector3d::Zero();  // 转换后的ENU坐标
+    Eigen::Vector3d enu = Eigen::Vector3d::Zero();  // Converted ENU coordinates
 };
 
 /**
- * @brief IMU数据 (预留)
+ * @brief IMU data (reserved)
  */
 struct IMUData {
     double timestamp = 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -28,31 +28,31 @@
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/navigation/GPSFactor.h>
 
-#include "fusion_base.hpp"
-#include "odom_buffer.hpp"
-#include "gps_buffer.hpp"
-#include "yaw_init.hpp"
+#include "fusion/fusion_base.hpp"
+#include "fusion/odom_buffer.hpp"
+#include "fusion/gps_buffer.hpp"
+#include "fusion/yaw_init.hpp"
 #include "common/data_types.hpp"
 #include "common/logger.hpp"
-#include "common/parameter.h"
+#include "common/parameter.hpp"
 
 namespace odin_rtk_fusion {
 
 using gtsam::symbol_shorthand::X;
 
 // ============================================================================
-// NewFusion Class
+// GraphFusion: ISAM2 factor graph fusion (odom + GPS + heading factors)
 // ============================================================================
 
-class NewFusion final : public FusionBase {
+class GraphFusion final : public FusionBase {
 public:
-    using Config = NewFusionParams;
+    using Config = FusionAlgorithmParams;
 
     // ------------------------------------------------------------------------
     // Construction
     // ------------------------------------------------------------------------
-    NewFusion() : NewFusion(Config()) {}
-    explicit NewFusion(const Config& config);
+    GraphFusion() : GraphFusion(Config()) {}
+    explicit GraphFusion(const Config& config);
 
     // ------------------------------------------------------------------------
     // Public Interface (FusionBase overrides)
@@ -103,24 +103,36 @@ private:
     State state_ = State::kInitializing;
 
     // Data buffers
-    OdomBuffer odom_buffer_;           // odom 缓存（初始化和运行时共用）
-    GpsBuffer gps_buffer_;             // GPS 缓存（仅初始化阶段使用）
+    OdomBuffer odom_buffer_;           // Odom buffer (shared by init and runtime)
+    GpsBuffer gps_buffer_;             // GPS buffer (used only during init)
 
     // Node management
     int node_count_ = 0;
 
     // Odom state
     bool have_odom_ = false;
-    double last_node_timestamp_ = 0.0;  // 上一个节点的时间戳
-    gtsam::Pose3 last_node_odom_pose_;  // 上一个节点的 odom pose
+    double last_node_timestamp_ = 0.0;  // Timestamp of the last node
+    gtsam::Pose3 last_node_odom_pose_;  // Odom pose of the last node
     gtsam::Pose3 last_key_world_pose_;
 
-    // World-to-odom transform
+    // World-to-odom transform (raw from ISAM2, updated at GPS rate)
     Eigen::Matrix4d world_T_odom_ = Eigen::Matrix4d::Identity();
 
     // Init alignment
     double init_yaw_offset_ = 0.0;
-    double gps_time_offset_ = 0.0;  // GPS 时间补偿量（加到 GPS 时间戳上）
+    double gps_time_offset_ = 0.0;  // GPS time compensation (added to GPS timestamp)
+
+    // GPS heading estimation (from position differences)
+    Eigen::Vector3d last_gps_enu_{0, 0, 0};
+    bool have_last_gps_ = false;
+
+    // GPS heading state (used in addGpsFactor for heading factor)
+    double last_gps_heading_ = 0.0;
+    double last_odom_yaw_at_gps_ = 0.0;
+    bool have_gps_heading_ = false;
+
+    // Last GPS body z for wTo z anchoring (prevent z drift in output)
+    double last_gps_body_z_ = 0.0;
 
     // Marginalization
     int last_marginalized_id_ = -1;

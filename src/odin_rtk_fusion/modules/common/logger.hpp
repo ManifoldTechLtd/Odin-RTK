@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,24 +19,26 @@
 #include <memory>
 #include <string>
 
+namespace odin_rtk_fusion {
+
 class SpdlogManager {
  public:
   static SpdlogManager& getInstance();
 
-  // 初始化日志系统
+  // Initialize logging system
   void initialize(const std::string& log_file = "spdlog_test.log", bool clear_old_logs = false);
 
-  // 获取默认日志器
+  // Get default logger
   std::shared_ptr<spdlog::logger> getLogger(const std::string& name = "default");
 
-  // 设置日志级别
+  // Set log level
   void setLevel(spdlog::level::level_enum level);
 
-  // 刷新日志
+  // Flush logs
   void flush();
 
  private:
-  // 清除旧的日志文件
+  // Clear old log files
   void clearOldLogFiles(const std::string& log_file);
   SpdlogManager()                                = default;
   ~SpdlogManager()                               = default;
@@ -47,7 +49,9 @@ class SpdlogManager {
   std::shared_ptr<spdlog::logger> default_logger_;
 };
 
-// 便捷的宏定义
+}  // namespace odin_rtk_fusion
+
+// Convenience macros
 #define LOG_TRACE(...) SPDLOG_TRACE(__VA_ARGS__)
 #define LOG_DEBUG(...) SPDLOG_DEBUG(__VA_ARGS__)
 #define LOG_INFO(...) SPDLOG_INFO(__VA_ARGS__)
@@ -55,7 +59,7 @@ class SpdlogManager {
 #define LOG_ERROR(...) SPDLOG_ERROR(__VA_ARGS__)
 #define LOG_CRITICAL(...) SPDLOG_CRITICAL(__VA_ARGS__)
 
-// 模块特定的日志宏
+// Module-specific log macros
 #define MODULE_LOG_TRACE(module, ...) SPDLOG_TRACE("[{}] " __VA_ARGS__, module)
 #define MODULE_LOG_DEBUG(module, ...) SPDLOG_DEBUG("[{}] " __VA_ARGS__, module)
 #define MODULE_LOG_INFO(module, ...) SPDLOG_INFO("[{}] " __VA_ARGS__, module)
@@ -63,7 +67,7 @@ class SpdlogManager {
 #define MODULE_LOG_ERROR(module, ...) SPDLOG_ERROR("[{}] " __VA_ARGS__, module)
 #define MODULE_LOG_CRITICAL(module, ...) SPDLOG_CRITICAL("[{}] " __VA_ARGS__, module)
 
-// 初始化宏
-#define INIT_SPDLOG(log_file) SpdlogManager::getInstance().initialize(log_file)
-#define INIT_SPDLOG_CLEAR(log_file) SpdlogManager::getInstance().initialize(log_file, true)
-#define SET_LOG_LEVEL(level) SpdlogManager::getInstance().setLevel(level)
+// Initialization macros
+#define INIT_SPDLOG(log_file) odin_rtk_fusion::SpdlogManager::getInstance().initialize(log_file)
+#define INIT_SPDLOG_CLEAR(log_file) odin_rtk_fusion::SpdlogManager::getInstance().initialize(log_file, true)
+#define SET_LOG_LEVEL(level) odin_rtk_fusion::SpdlogManager::getInstance().setLevel(level)

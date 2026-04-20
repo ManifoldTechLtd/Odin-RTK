@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Manifold Tech Ltd.(www.manifoldtech.com.co)
+ * Copyright 2026 Manifold Tech Ltd.(manifoldtech.cn)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -17,7 +17,6 @@
 #include <cmath>
 #include <limits>
 #include <algorithm>
-#include <iostream>
 
 namespace odin_rtk_fusion {
 
@@ -54,10 +53,10 @@ std::pair<bool, double> circularMean(const std::vector<YawSample>& samples) {
 
 struct SpeedSample {
     double timestamp;
-    double speed;  // 速度二范数
+    double speed;  // Speed norm
 };
 
-// 从 GPS buffer 计算速度序列
+// Compute speed sequence from GPS buffer
 std::vector<SpeedSample> computeGpsSpeedSequence(const GpsBuffer& gps_buffer) {
     std::vector<SpeedSample> speeds;
     if (gps_buffer.size() < 2) {
@@ -79,7 +78,7 @@ std::vector<SpeedSample> computeGpsSpeedSequence(const GpsBuffer& gps_buffer) {
     return speeds;
 }
 
-// 从 Odom buffer 计算速度序列
+// Compute speed sequence from Odom buffer
 std::vector<SpeedSample> computeOdomSpeedSequence(const OdomBuffer& odom_buffer) {
     std::vector<SpeedSample> speeds;
     if (odom_buffer.size() < 2) {
@@ -101,7 +100,7 @@ std::vector<SpeedSample> computeOdomSpeedSequence(const OdomBuffer& odom_buffer)
     return speeds;
 }
 
-// 在 odom 速度序列中插值获取指定时间的速度
+// Interpolate speed at given time from odom speed sequence
 double interpolateSpeed(const std::vector<SpeedSample>& speeds, double t) {
     if (speeds.empty()) {
         return 0.0;
@@ -112,7 +111,7 @@ double interpolateSpeed(const std::vector<SpeedSample>& speeds, double t) {
     if (t >= speeds.back().timestamp) {
         return speeds.back().speed;
     }
-    // 二分查找
+    // Binary search
     auto it = std::lower_bound(speeds.begin(), speeds.end(), t,
         [](const SpeedSample& s, double ts) { return s.timestamp < ts; });
     if (it == speeds.begin()) {
@@ -123,7 +122,7 @@ double interpolateSpeed(const std::vector<SpeedSample>& speeds, double t) {
     return prev->speed + alpha * (it->speed - prev->speed);
 }
 
-// 计算给定时间偏移下的速度差异代价
+// Compute speed difference cost for a given time offset
 double computeSpeedCost(const std::vector<SpeedSample>& gps_speeds,
                         const std::vector<SpeedSample>& odom_speeds,
                         double time_offset) {
@@ -142,7 +141,7 @@ double computeSpeedCost(const std::vector<SpeedSample>& gps_speeds,
     return count > 0 ? sum_sq_diff / count : std::numeric_limits<double>::max();
 }
 
-// 估计时间偏移（最小化速度二范数差异）
+// Estimate time offset (minimize speed norm difference)
 double estimateTimeOffset(const OdomBuffer& odom_buffer,
                           const GpsBuffer& gps_buffer,
                           double range, double step) {
@@ -153,11 +152,11 @@ double estimateTimeOffset(const OdomBuffer& odom_buffer,
         return 0.0;
     }
     
-    // 输出 GPS 速度序列用于调试
+    // Output GPS speed sequence for debugging
     for (const auto& s : gps_speeds) {
         LOG_INFO("[SPEED_LOG] GPS {:.6f} {:.4f}", s.timestamp, s.speed);
     }
-    // 输出 Odom 速度序列用于调试
+    // Output Odom speed sequence for debugging
     for (const auto& s : odom_speeds) {
         LOG_INFO("[SPEED_LOG] ODOM {:.6f} {:.4f}", s.timestamp, s.speed);
     }
@@ -173,7 +172,7 @@ double estimateTimeOffset(const OdomBuffer& odom_buffer,
         }
     }
     
-    // 输出最佳偏移
+    // Output best offset
     LOG_INFO("[SPEED_LOG] BEST_OFFSET {:.6f}", best_offset);
     
     return best_offset;
@@ -259,19 +258,17 @@ std::optional<YawInitResult> computeInitYawOffset(
         return std::nullopt;
     }
 
-    // 估计时间偏移（通过速度二范数对齐）
+    // Estimate time offset (via speed norm alignment)
     const double time_offset = estimateTimeOffset(
         odom_buffer, gps_buffer,
         config.time_offset_range, config.time_offset_step);
 
-    // time_offset 的含义：GPS 时间戳 + time_offset = 对应的 odom 时间戳
-    // time_offset < 0: GPS 时钟比 odom 慢（odom 曲线在时间轴上领先）
-    // time_offset > 0: odom 时钟比 GPS 快（GPS 曲线在时间轴上领先）
-    std::cout << "[YawInit] yaw_offset: " << mean1.second << " rad ("
-              << mean1.second * 180.0 / M_PI << " deg), "
-              << "time_offset: " << time_offset << " s "
-              << "(GPS clock " << (time_offset <= 0 ? "slower" : "faster") << " than odom by " 
-              << std::abs(time_offset) << "s)" << std::endl;
+    // time_offset meaning: GPS timestamp + time_offset = corresponding odom timestamp
+    // time_offset < 0: GPS clock is slower than odom (odom curve leads on time axis)
+    // time_offset > 0: odom clock is faster than GPS (GPS curve leads on time axis)
+    LOG_INFO("[YawInit] yaw_offset: {:.4f} rad ({:.2f} deg), time_offset: {:.4f} s (GPS clock {} than odom by {:.4f}s)",
+             mean1.second, mean1.second * 180.0 / M_PI, time_offset,
+             time_offset <= 0 ? "slower" : "faster", std::abs(time_offset));
 
     return YawInitResult{
         mean1.second,

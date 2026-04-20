@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="bin_file" default="/home/ztyu/Documents/slam/project_odin_gnss/ws_odin_rtk_fusion/output.bin"/>
+    <arg name="config_file" default="$(find odin_rtk_fusion)/config/fusion_params.yaml"/>
+    <arg name="playback_speed" default="1.0"/>
+    <arg name="output_project_topic" default="/world/odom_projected"/>
+    <arg name="output_project_frame_id" default="world_proj"/>
+
+    <!-- ========== Bin Replay Node ========== -->
+    <node pkg="odin_rtk_fusion" type="bin_replay_node" name="bin_replay_node" output="screen">
+        <param name="bin_file" value="$(arg bin_file)"/>
+        <param name="config_file" value="$(arg config_file)"/>
+        <param name="playback_speed" value="$(arg playback_speed)"/>
+        <param name="output_project_topic" value="$(arg output_project_topic)"/>
+        <param name="output_project_frame_id" value="$(arg output_project_frame_id)"/>
+    </node>
+
+    <!-- RViz Visualization -->
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log"
+          args="-d $(find odin_rtk_fusion)/ros/rviz/fusion.rviz"/>
+</launch>
