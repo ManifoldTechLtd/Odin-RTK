@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>odin_rtk_fusion</name>
+  <version>1.0.0</version>
+  <description>
+    SLAM Odometry and GGA (GPS) data fusion using GTSAM factor graph optimization.
+  </description>
+
+  <maintainer email="yuzhitao@manifold.cn">Zhitao Yu</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend condition="$ROS_VERSION == 1">catkin</buildtool_depend>
+  <buildtool_depend condition="$ROS_VERSION == 2">ament_cmake</buildtool_depend>
+
+  <!-- Build Dependencies -->
+  <build_depend condition="$ROS_VERSION == 1">roscpp</build_depend>
+  <build_depend condition="$ROS_VERSION == 2">rclcpp</build_depend>
+  <build_depend>nav_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>nmea_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>message_filters</build_depend>
+  <build_depend>eigen</build_depend>
+
+  <!-- Exec Dependencies -->
+  <exec_depend condition="$ROS_VERSION == 1">roscpp</exec_depend>
+  <exec_depend condition="$ROS_VERSION == 2">rclcpp</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nmea_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>pcl_ros</exec_depend>
+  <exec_depend>pcl_conversions</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+
+  <!-- External Dependencies -->
+  <depend>libgtsam-dev</depend>
+  <depend>libproj-dev</depend>
+  <depend>yaml-cpp</depend>
+
+  <export>
+    <build_type condition="$ROS_VERSION == 2">ament_cmake</build_type>
+  </export>
+
+</package>

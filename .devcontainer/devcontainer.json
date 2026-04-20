@@ -1,0 +1,35 @@
+{
+	"name": "rtmapping-ros2-humble-env",
+	"description": "This is a development container for rtmapping project in docker",
+	"dockerComposeFile": [
+		"docker-compose_ROS2Humble.yml"
+	],
+	"service": "rtkfusion_ROS2Humble_amd64",
+	"workspaceFolder": "/home/manifold/ws_odin_rtk/src/odin_rtk_fusion",
+	"shutdownAction": "stopCompose",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.shell.linux": "/bin/bash",
+				"ros.distro": "humble",
+				"C_Cpp.intelliSenseEngine": "Disabled",
+				"C_Cpp.autocomplete": "Disabled",
+				"clangd.path": "clangd",
+				"editor.fontFamily": "Ubuntu Mono derivative Powerline",
+				"editor.formatOnSave": false
+			},
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cmake-tools",
+				"ms-iot.vscode-ros",
+				"mhutchie.git-graph",
+				"cschlosser.doxdocgen",
+				"usernamehw.errorlens",
+				"seatonjiang.gitmoji-vscode",
+				"llvm-vs-code-extensions.vscode-clangd",
+				"oderwat.indent-rainbow",
+				"matepek.vscode-catch2-test-adapter"
+			]
+		}
+	}
+}

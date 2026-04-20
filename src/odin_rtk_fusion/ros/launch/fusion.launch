@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="config_file" default="$(find odin_rtk_fusion)/config/fusion_params.yaml"/>
+    <arg name="output_project_topic" default="/world/odom_projected"/>
+    <arg name="output_project_frame_id" default="world_proj"/>
+
+    <arg name="play_bag" default="false"/>
+    <arg name="bag_path" default="~/DEMO/odin_gnss.bag"/>
+    <arg name="bag_rate" default="3.0"/>
+    <arg name="bag_loop" default="false"/>
+    <arg name="bag_start" default="5.0"/>
+    <arg name="bag_use_clock" default="true"/>
+
+    <!-- ========== Fusion Node ========== -->
+    <node pkg="odin_rtk_fusion" type="fusion_node" name="fusion_node" output="screen">
+        <param name="config_file" value="$(arg config_file)"/>
+
+        <param name="output_project_topic" value="$(arg output_project_topic)"/>
+        <param name="output_project_frame_id" value="$(arg output_project_frame_id)"/>
+    </node>
+
+    <!-- RViz Visualization (optional) -->
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find odin_rtk_fusion)/ros/rviz/fusion.rviz"/>
+
+    <!-- Play bag -->
+    <group if="$(arg play_bag)">
+        <node pkg="rosbag" type="play" name="rosbag_play" output="screen"
+              args="$(eval (('--clock ' if arg('bag_use_clock') == 'true' else '') + arg('bag_path') + ' -r ' + str(arg('bag_rate')) + (' --loop' if arg('bag_loop') == 'true' else '') + ' --start ' + str(arg('bag_start'))) )"/>
+    </group>
+
+</launch>

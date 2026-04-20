@@ -1,0 +1,39 @@
+version: "3"
+services:
+  rtkfusion_ROS2Humble_amd64:
+    image: rtkfusion:ros2_humble-amd64-1.2.0
+    cap_add:
+      - SYS_PTRACE
+    network_mode: host
+    platform: linux/amd64
+    runtime: nvidia
+    gpus: all
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - ../:/home/manifold/ws_odin_rtk_fusion
+      - ${HOME}/.ssh:/home/manifold/.ssh:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    working_dir: /home/manifold/ws_odin_rtk_fusion
+    command: tail -f /dev/null
+  rtkfusion_ROS2Humble_amd64_debug:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rtkfusion:ros2_humble-amd64-1.1.0
+    cap_add:
+      - SYS_PTRACE
+    network_mode: host
+    platform: linux/amd64
+    runtime: nvidia
+    gpus: all
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - ../:/home/manifold/ws_odin_rtk/src/odin_rtk_fusion
+      - ${HOME}/.ssh:/home/manifold/.ssh:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    working_dir: /home/manifold/ws_odin_rtk/src/odin_rtk_fusion
+    command: tail -f /dev/null

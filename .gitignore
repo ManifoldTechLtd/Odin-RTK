@@ -1,0 +1,22 @@
+build/
+devel/
+install/
+# log/
+OUTPUT/
+
+.claude
+# .devcontainer
+.vscode
+.cache
+
+modules/common/build_config.h
+modules/gtsam/temp/
+
+*.pyc
+__pycache__/
+*.swp
+*.bag
+
+rosbag2_2026_03_04-18_55_54
+src/CMakeLists.txt
+src/odin_rtk_fusion/log
