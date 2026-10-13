@@ -19,12 +19,16 @@ Current version only requires GGA data
 """
 
 import argparse
+import json
 import threading
 import time
 import traceback
 
 import rclpy
 from rclpy.node import Node
+from rclpy.time import Time
+from std_msgs.msg import String
+from nmea_time import NmeaTimestampResolver, sentence_utc_ns
 from nmea_msgs.msg import Sentence
 from nmea_msgs.msg import Gpgga
 from nmea_msgs.msg import Gpgsa
@@ -174,7 +178,17 @@ def main():
     parser.add_argument("--topic_gsa", default="/odin1/gsa")
     parser.add_argument("--topic_rmc", default="/odin1/rmc")
     parser.add_argument("--node", default="nmea_sentence_publisher")
+    parser.add_argument("--stamp-mode", choices=("receive", "utc"), default="receive")
+    parser.add_argument("--utc-offset-sec", type=float, default=0.0)
+    parser.add_argument("--max-sample-age-sec", type=float, default=2.0)
+    parser.add_argument("--future-tolerance-sec", type=float, default=0.05)
+    parser.add_argument("--time-diagnostics", choices=("true", "false"), default="false")
     args = parser.parse_args()
+    try:
+        resolver = NmeaTimestampResolver(args.stamp_mode, args.utc_offset_sec,
+                                         args.max_sample_age_sec, args.future_tolerance_sec)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     rclpy.init()
 
@@ -183,9 +197,11 @@ def main():
     pub_gga = node.create_publisher(Gpgga, args.topic_gga, 50)
     pub_gsa = node.create_publisher(Gpgsa, args.topic_gsa, 50)
     pub_rmc = node.create_publisher(Gprmc, args.topic_rmc, 50)
+    pub_timing = node.create_publisher(String, "/odin1/nmea_timing", 50) if args.time_diagnostics == "true" else None
     reader = SerialSentenceReader(port=args.port, baudrate=args.baudrate)
 
     node.get_logger().info(f"Node started: {args.node}")
+    node.get_logger().info(f"NMEA stamp mode={args.stamp_mode}, utc_offset_sec={args.utc_offset_sec}")
     node.get_logger().info(f"Publishing nmea_msgs/Sentence (raw) on: {args.topic}")
     node.get_logger().info(f"Publishing nmea_msgs/Gpgga on: {args.topic_gga}")
     node.get_logger().info(f"Publishing nmea_msgs/Gpgsa on: {args.topic_gsa}")
@@ -250,7 +266,30 @@ def main():
         return lat, lon
 
     def on_sentence(s: str):
-        stamp = node.get_clock().now().to_msg()
+        receive_ns = node.get_clock().now().nanoseconds
+        stamp_ns = None
+        error = ""
+        try:
+            if args.stamp_mode == "utc" and abs(receive_ns - time.time_ns()) > 100_000_000:
+                raise ValueError("utc 模式要求 ROS 时钟与主机 UTC 同轴，不支持未对齐的 /clock")
+            stamp_ns = resolver.resolve(s, receive_ns)
+        except ValueError as exc:
+            error = str(exc)
+        if pub_timing is not None and _sentence_type(s) in ("GGA", "RMC"):
+            utc_ns = None
+            try:
+                utc_ns = sentence_utc_ns(s, receive_ns - resolver.offset_ns)
+            except ValueError as exc:
+                error = error or str(exc)
+            pub_timing.publish(String(data=json.dumps({
+                "mode": args.stamp_mode, "receive_ns": receive_ns, "utc_ns": utc_ns,
+                "stamp_ns": stamp_ns, "offset_ns": resolver.offset_ns,
+                "accepted": stamp_ns is not None, "error": error,
+            }, allow_nan=False)))
+        if stamp_ns is None:
+            node.get_logger().warning(f"Skip NMEA sample: {error}", throttle_duration_sec=2.0)
+            return
+        stamp = Time(nanoseconds=stamp_ns).to_msg()
 
         raw_msg = Sentence()
         raw_msg.header.stamp = stamp

@@ -25,6 +25,7 @@ gps_base_sigma: 5.0           # GPS base noise std dev (m), actual noise = gps_b
 initial_lever_arm: [-0.1, 0, 0.1]  # Antenna position in body frame [x, y, z] (m)
 max_gps_match_dt: 0.5                # Max GPS-odom timestamp difference (s)
 max_nodes: 5000                      # Max node count (marginalization threshold)
+disable_gps_time_offset_estimation: false
 
 # =============================================================================
 # Initialization Parameters

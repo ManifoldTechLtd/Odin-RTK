@@ -52,6 +52,9 @@ void AlignmentFusion::addGPS(const GPSData& gps) {
         yaw_config.min_gps_displacement = config_.init_min_gps_displacement;
         yaw_config.min_odom_displacement = config_.init_min_odom_displacement;
         yaw_config.min_samples = 2;
+        if (config_.disable_gps_time_offset_estimation) {
+            yaw_config.time_offset_range = 0.0;
+        }
 
         auto init_result = computeInitYawOffset(odom_buffer_, gps_buffer_, yaw_config);
         if (!init_result) {

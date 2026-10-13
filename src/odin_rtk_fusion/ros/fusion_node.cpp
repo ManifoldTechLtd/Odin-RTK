@@ -30,6 +30,7 @@
 #if defined(ODIN_ROS2)
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <nmea_msgs/msg/sentence.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <geometry_msgs/msg/point.hpp>
@@ -38,6 +39,7 @@
 #else
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <nmea_msgs/Sentence.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Point.h>
@@ -50,6 +52,7 @@ namespace odin_rtk_fusion {
 // Type aliases for ROS1/ROS2 abstraction
 #if defined(ODIN_ROS2)
 using OdometryMsg = nav_msgs::msg::Odometry;
+using NavSatFixMsg = sensor_msgs::msg::NavSatFix;
 using SentenceMsg = nmea_msgs::msg::Sentence;
 using MarkerMsg = visualization_msgs::msg::Marker;
 using TransformStampedMsg = geometry_msgs::msg::TransformStamped;
@@ -63,6 +66,7 @@ template <typename MsgT>
 using SubscriptionType = typename rclcpp::Subscription<MsgT>::SharedPtr;
 #else
 using OdometryMsg = nav_msgs::Odometry;
+using NavSatFixMsg = sensor_msgs::NavSatFix;
 using SentenceMsg = nmea_msgs::Sentence;
 using MarkerMsg = visualization_msgs::Marker;
 using TransformStampedMsg = geometry_msgs::TransformStamped;
@@ -140,6 +144,11 @@ private:
             algorithm_type_ = algo_override;
         }
 
+        new_config_.disable_gps_time_offset_estimation = getParam<bool>(
+            "disable_gps_time_offset_estimation", new_config_.disable_gps_time_offset_estimation);
+        logInfo("  disable_gps_time_offset_estimation: %s",
+                new_config_.disable_gps_time_offset_estimation ? "true" : "false");
+
         projected_odom_topic_ = getParam<std::string>("output_project_topic", std::string("/world/odom_projected"));
         projected_frame_id_ = getParam<std::string>("output_project_frame_id", std::string("world_proj"));
 
@@ -170,10 +179,12 @@ private:
 #if defined(ODIN_ROS2)
         fused_odom_pub_ = node_->create_publisher<OdometryMsg>("/world_enu/odom", rclcpp::QoS(100));
         gnss_marker_pub_ = node_->create_publisher<MarkerMsg>("/world_enu/gnss_marker", rclcpp::QoS(10));
+        origin_pub_ = node_->create_publisher<NavSatFixMsg>("/world_enu/origin", rclcpp::QoS(1).transient_local());
         fused_odom_projected_pub_ = node_->create_publisher<OdometryMsg>(projected_odom_topic_, rclcpp::QoS(100));
 #else
         fused_odom_pub_ = nh_.advertise<OdometryMsg>("/world_enu/odom", 100);
         gnss_marker_pub_ = nh_.advertise<MarkerMsg>("/world_enu/gnss_marker", 10);
+        origin_pub_ = nh_.advertise<NavSatFixMsg>("/world_enu/origin", 1, true);
         fused_odom_projected_pub_ = nh_.advertise<OdometryMsg>(projected_odom_topic_, 100);
 #endif
     }
@@ -324,13 +335,22 @@ private:
         if (!gga.valid) { return; }
 
         if (!std::isfinite(gga.lat) || !std::isfinite(gga.lon) || !std::isfinite(gga.alt) ||
-            !std::isfinite(gga.hdop) || !std::isfinite(gga.timestamp)) {
-            logWarnThrottle(1.0, "Skip GGA: non-finite value detected (lat/lon/alt/hdop/utc)");
+            !std::isfinite(gga.hdop) || !std::isfinite(gga.timestamp) ||
+            std::abs(gga.lat) > 90.0 || std::abs(gga.lon) > 180.0) {
+            logWarnThrottle(1.0, "Skip GGA: invalid coordinate or non-finite value (lat/lon/alt/hdop/utc)");
             return;
         }
 
         if (!enu_converter_.isInitialized()) {
             enu_converter_.setOrigin(gga.lat, gga.lon, gga.alt);
+            NavSatFixMsg origin;
+            origin.header.stamp = stamp;
+            origin.header.frame_id = "world";
+            origin.status.status = origin.status.STATUS_FIX;
+            origin.status.service = origin.status.SERVICE_GPS;
+            enu_converter_.getOrigin(origin.latitude, origin.longitude, origin.altitude);
+            origin.position_covariance_type = NavSatFixMsg::COVARIANCE_TYPE_UNKNOWN;
+            publish(origin_pub_, origin);
             logInfo("ENU origin set: lat=%.7f, lon=%.7f, alt=%.2f", gga.lat, gga.lon, gga.alt);
         }
 
@@ -482,6 +502,7 @@ private:
     PublisherType<OdometryMsg> fused_odom_pub_;
     PublisherType<OdometryMsg> fused_odom_projected_pub_;
     PublisherType<MarkerMsg> gnss_marker_pub_;
+    PublisherType<NavSatFixMsg> origin_pub_;
 
     std::string config_file_;
     std::string input_lla_crs_ = "EPSG:4326";

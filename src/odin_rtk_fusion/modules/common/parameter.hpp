@@ -31,6 +31,7 @@ struct FusionAlgorithmParams {
 
     double max_gps_match_dt = 0.5;       // Max GPS-odom matching time diff (s)
     int max_nodes = 100;                 // Max nodes (marginalization threshold)
+    bool disable_gps_time_offset_estimation = false;
 
     // Initialization parameters
     int init_gps_buffer_size = 30;
@@ -60,6 +61,7 @@ struct FusionAlgorithmParams {
 
         readScalar("max_gps_match_dt", p.max_gps_match_dt);
         readScalar("max_nodes", p.max_nodes);
+        readScalar("disable_gps_time_offset_estimation", p.disable_gps_time_offset_estimation);
 
         readScalar("init_gps_buffer_size", p.init_gps_buffer_size);
         readScalar("init_min_gps_displacement", p.init_min_gps_displacement);
