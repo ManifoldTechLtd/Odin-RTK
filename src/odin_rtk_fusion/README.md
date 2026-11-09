@@ -220,6 +220,12 @@ Common projection CRS options:
 - `EPSG:4526` — CGCS2000 / 3-degree Gauss-Kruger zone 38 (Shenzhen)
 - `EPSG:4527` — CGCS2000 / 3-degree Gauss-Kruger zone 39 (Beijing)
 
+**Output Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `publish_tf` | `true` | Broadcast the `world → odom` TF. Set `false` when another stack owns the `odom` TF parent (e.g. ONS2 `map → odom`) |
+
 ## File Structure
 
 ```

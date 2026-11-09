@@ -132,6 +132,7 @@ private:
             input_lla_crs_ = params.input_lla_crs;
             output_project_enable_ = params.output_project_enable;
             output_project_target_crs_ = params.output_project_target_crs;
+            publish_tf_ = params.publish_tf;
         } catch (const std::exception& e) {
             logError("Failed to load config_file '%s': %s", config_file_.c_str(), e.what());
             new_config_ = FusionAlgorithmParams();
@@ -148,6 +149,9 @@ private:
             "disable_gps_time_offset_estimation", new_config_.disable_gps_time_offset_estimation);
         logInfo("  disable_gps_time_offset_estimation: %s",
                 new_config_.disable_gps_time_offset_estimation ? "true" : "false");
+
+        publish_tf_ = getParam<bool>("publish_tf", publish_tf_);
+        logInfo("  publish_tf: %s", publish_tf_ ? "true" : "false");
 
         projected_odom_topic_ = getParam<std::string>("output_project_topic", std::string("/world/odom_projected"));
         projected_frame_id_ = getParam<std::string>("output_project_frame_id", std::string("world_proj"));
@@ -325,7 +329,7 @@ private:
 
         publish(fused_odom_pub_, fused_odom_msg);
         publishProjectedOdom(fused_odom_msg);
-        publishTF(stamp);
+        if (publish_tf_) { publishTF(stamp); }
     }
 
     void processGga(const SentenceMsg& msg, const RosTime& stamp) {
@@ -394,9 +398,9 @@ private:
 
         OdometryMsg projected = enu_odom_msg;
         projected.header.frame_id = projected_frame_id_;
-        projected.pose.pose.position.x = enu_odom_msg.pose.pose.position.x;
-        projected.pose.pose.position.y = enu_odom_msg.pose.pose.position.y;
-        projected.pose.pose.position.z = enu_odom_msg.pose.pose.position.z;
+        projected.pose.pose.position.x = out_x;
+        projected.pose.pose.position.y = out_y;
+        projected.pose.pose.position.z = out_z;
         publish(fused_odom_projected_pub_, projected);
     }
 
@@ -508,6 +512,7 @@ private:
     std::string input_lla_crs_ = "EPSG:4326";
     bool output_project_enable_ = false;
     std::string output_project_target_crs_;
+    bool publish_tf_ = true;
     std::string projected_odom_topic_ = "/world/odom_projected";
     std::string projected_frame_id_ = "world_proj";
 };

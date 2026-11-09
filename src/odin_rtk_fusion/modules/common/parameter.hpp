@@ -90,6 +90,8 @@ struct FusionNodeParams {
     bool output_project_enable = false;
     std::string output_project_target_crs;
 
+    bool publish_tf = true;
+
     static FusionNodeParams LoadFromYamlFile(const std::string& yaml_file) {
         FusionNodeParams p;
         p.algorithm = FusionAlgorithmParams::LoadFromYamlFile(yaml_file);
@@ -111,6 +113,7 @@ struct FusionNodeParams {
         readScalar("input_lla_crs", p.input_lla_crs);
         readScalar("output_project_enable", p.output_project_enable);
         readScalar("output_project_target_crs", p.output_project_target_crs);
+        readScalar("publish_tf", p.publish_tf);
         return p;
     }
 };

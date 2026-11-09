@@ -46,3 +46,9 @@ init_yaw_prior_sigma: 0.2       # Initial yaw prior noise (rad)
 input_lla_crs: EPSG:4326
 output_project_enable: true
 output_project_target_crs: EPSG:32650
+
+# =============================================================================
+# Output Parameters
+# =============================================================================
+# publish_tf: broadcast world -> odom. Set false when another stack (e.g. ONS2) owns odom's TF parent.
+publish_tf: true
